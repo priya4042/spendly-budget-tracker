@@ -3,6 +3,8 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../util.dart';
+import '../l10n.dart';
+import '../add_sheet.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -13,6 +15,7 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   String _query = '';
   int _filter = 0; // 0 all, 1 income, 2 expense
+  int _sort = 0;   // 0 newest, 1 oldest, 2 highest, 3 lowest
 
   @override
   Widget build(BuildContext context) {
@@ -28,21 +31,36 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           txns = txns.where((t) =>
               t.category.toLowerCase().contains(q) || t.note.toLowerCase().contains(q)).toList();
         }
+        if (_sort == 1) txns.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        if (_sort == 2) txns.sort((a, b) => b.amount.compareTo(a.amount));
+        if (_sort == 3) txns.sort((a, b) => a.amount.compareTo(b.amount));
         return Column(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
-            child: Text('History', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text))),
+          Padding(padding: const EdgeInsets.fromLTRB(20, 16, 8, 6),
+            child: Row(children: [
+              Text(L.t('history'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text)),
+              const Spacer(),
+              PopupMenuButton<int>(
+                icon: Icon(Icons.sort, color: c.text),
+                onSelected: (v) => setState(() => _sort = v),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 0, child: Text('Newest first')),
+                  PopupMenuItem(value: 1, child: Text('Oldest first')),
+                  PopupMenuItem(value: 2, child: Text('Highest amount')),
+                  PopupMenuItem(value: 3, child: Text('Lowest amount')),
+                ]),
+            ])),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextField(
               onChanged: (v) => setState(() => _query = v),
               style: TextStyle(color: c.text),
               decoration: InputDecoration(
-                hintText: 'Search category or note', prefixIcon: Icon(Icons.search, color: c.muted),
+                hintText: L.t('search'), prefixIcon: Icon(Icons.search, color: c.muted),
                 filled: true, fillColor: c.card,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0)))),
           const SizedBox(height: 10),
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _chip('All', 0, c), _chip('Income', 1, c), _chip('Expense', 2, c),
+            _chip(L.t('all'), 0, c), _chip(L.t('income'), 1, c), _chip(L.t('expense'), 2, c),
           ]),
           const SizedBox(height: 6),
           Expanded(child: txns.isEmpty
@@ -74,7 +92,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       background: Container(alignment: Alignment.centerRight, color: kRed,
         padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
       onDismissed: (_) => Store.instance.remove(t.id),
-      child: Container(
+      child: GestureDetector(
+        onTap: () => showAddSheet(context, edit: t),
+        child: Container(
         margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
@@ -93,6 +113,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             Text(dayLabel(t.date), style: TextStyle(color: c.muted, fontSize: 11)),
           ]),
         ]),
+      ),
       ),
     );
   }

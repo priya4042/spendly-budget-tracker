@@ -50,11 +50,59 @@ class UdhaarScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _splitBill(BuildContext context) async {
+    final totalCtrl = TextEditingController();
+    final peopleCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final c = AppC.of(context);
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      backgroundColor: c.card,
+      title: Text('Split a bill', style: TextStyle(color: c.text)),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('You paid the bill. Enter friends to split with (they will owe you their share).',
+          style: TextStyle(color: c.muted, fontSize: 13)),
+        const SizedBox(height: 12),
+        TextField(controller: totalCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+          style: TextStyle(color: c.text), decoration: const InputDecoration(prefixText: '₹ ', hintText: 'Total bill amount')),
+        const SizedBox(height: 10),
+        TextField(controller: peopleCtrl, style: TextStyle(color: c.text),
+          decoration: const InputDecoration(hintText: 'Friends, comma separated (e.g. Rahul, Priya)')),
+        const SizedBox(height: 10),
+        TextField(controller: noteCtrl, style: TextStyle(color: c.text),
+          decoration: const InputDecoration(hintText: 'What for? (e.g. Dinner)')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Split')),
+      ],
+    ));
+    if (ok != true) return;
+    final total = double.tryParse(totalCtrl.text.trim());
+    final names = peopleCtrl.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    if (total == null || total <= 0 || names.isEmpty) return;
+    final share = total / (names.length + 1); // +1 = you
+    final note = noteCtrl.text.trim().isEmpty ? 'Split' : 'Split: ${noteCtrl.text.trim()}';
+    for (final n in names) {
+      await Store.instance.addDebt(Debt(
+        id: '${DateTime.now().microsecondsSinceEpoch}_$n',
+        person: n, amount: double.parse(share.toStringAsFixed(2)), iLent: true,
+        note: note, timestamp: DateTime.now().millisecondsSinceEpoch));
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Split ${money(total)} — each owes you ${money(double.parse(share.toStringAsFixed(2)))}')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppC.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Udhaar')),
+      appBar: AppBar(title: const Text('Udhaar'), actions: [
+        IconButton(icon: const Icon(Icons.call_split), tooltip: 'Split a bill',
+          onPressed: () => _splitBill(context)),
+      ]),
       floatingActionButton: FloatingActionButton(backgroundColor: kGreen, foregroundColor: Colors.white,
         onPressed: () => _add(context), child: const Icon(Icons.add)),
       body: ListenableBuilder(listenable: Store.instance, builder: (context, _) {

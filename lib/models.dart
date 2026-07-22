@@ -84,16 +84,19 @@ class Wallet {
   final String name;
   final String iconKey;
   final int color;
-  Wallet({required this.id, required this.name, required this.iconKey, required this.color});
+  double openingBalance;
+  Wallet({required this.id, required this.name, required this.iconKey,
+    required this.color, this.openingBalance = 0});
 
   IconData get icon => iconFor(iconKey);
   Color get colour => Color(color);
 
   Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'iconKey': iconKey, 'color': color};
+      {'id': id, 'name': name, 'iconKey': iconKey, 'color': color, 'openingBalance': openingBalance};
   factory Wallet.fromJson(Map<String, dynamic> j) => Wallet(
       id: j['id'] ?? 'cash', name: j['name'] ?? 'Cash',
-      iconKey: j['iconKey'] ?? 'cash', color: j['color'] ?? 0xFF66BB6A);
+      iconKey: j['iconKey'] ?? 'cash', color: j['color'] ?? 0xFF66BB6A,
+      openingBalance: (j['openingBalance'] ?? 0).toDouble());
 }
 
 List<Wallet> get defaultWallets => [
@@ -101,6 +104,24 @@ List<Wallet> get defaultWallets => [
       Wallet(id: 'bank', name: 'Bank', iconKey: 'bank', color: 0xFF42A5F5),
       Wallet(id: 'card', name: 'Card', iconKey: 'card', color: 0xFFAB47BC),
     ];
+
+/// A one-tap quick-add template for a common expense/income.
+class Preset {
+  final String id;
+  final String label;
+  final double amount;
+  final bool isExpense;
+  final String category;
+  final String walletId;
+  Preset({required this.id, required this.label, required this.amount,
+    required this.isExpense, required this.category, required this.walletId});
+
+  Map<String, dynamic> toJson() => {'id': id, 'label': label, 'amount': amount,
+    'isExpense': isExpense, 'category': category, 'walletId': walletId};
+  factory Preset.fromJson(Map<String, dynamic> j) => Preset(
+      id: j['id'] ?? '', label: j['label'] ?? '', amount: (j['amount'] ?? 0).toDouble(),
+      isExpense: j['isExpense'] ?? true, category: j['category'] ?? 'Other', walletId: j['walletId'] ?? 'cash');
+}
 
 /// A single income/expense entry.
 class Txn {
@@ -203,6 +224,39 @@ class Bill {
       id: j['id'] ?? '', name: j['name'] ?? '', amount: (j['amount'] ?? 0).toDouble(),
       dueDay: j['dueDay'] ?? 1, iconKey: j['iconKey'] ?? 'bills', color: j['color'] ?? 0xFFFFA726,
       remind: j['remind'] ?? true);
+}
+
+/// A loan / EMI being repaid over a number of months.
+class Loan {
+  final String id;
+  final String name;
+  final double emiAmount;
+  final int totalMonths;
+  int paidMonths;
+  final int dueDay; // 1..28
+  final String iconKey;
+  final int color;
+  bool remind;
+  Loan({required this.id, required this.name, required this.emiAmount,
+    required this.totalMonths, this.paidMonths = 0, required this.dueDay,
+    required this.iconKey, required this.color, this.remind = true});
+
+  IconData get icon => iconFor(iconKey);
+  Color get colour => Color(color);
+  double get totalPayable => emiAmount * totalMonths;
+  double get paid => emiAmount * paidMonths;
+  double get remaining => emiAmount * (totalMonths - paidMonths);
+  double get progress => totalMonths == 0 ? 0 : (paidMonths / totalMonths).clamp(0, 1).toDouble();
+  bool get isDone => paidMonths >= totalMonths;
+  int get notifId => 3000 + (id.hashCode & 0x7fff);
+
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'emiAmount': emiAmount,
+    'totalMonths': totalMonths, 'paidMonths': paidMonths, 'dueDay': dueDay,
+    'iconKey': iconKey, 'color': color, 'remind': remind};
+  factory Loan.fromJson(Map<String, dynamic> j) => Loan(
+      id: j['id'] ?? '', name: j['name'] ?? '', emiAmount: (j['emiAmount'] ?? 0).toDouble(),
+      totalMonths: j['totalMonths'] ?? 1, paidMonths: j['paidMonths'] ?? 0, dueDay: j['dueDay'] ?? 1,
+      iconKey: j['iconKey'] ?? 'bank', color: j['color'] ?? 0xFF5C6BC0, remind: j['remind'] ?? true);
 }
 
 /// A recurring transaction template that auto-adds each month.

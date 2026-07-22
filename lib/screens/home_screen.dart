@@ -3,6 +3,8 @@ import '../models.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../util.dart';
+import '../l10n.dart';
+import '../add_sheet.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -22,14 +24,16 @@ class HomeScreen extends StatelessWidget {
           SliverToBoxAdapter(child: _monthBar(context, c, s)),
           SliverToBoxAdapter(child: _balanceCard(s, m)),
           SliverToBoxAdapter(child: _wallets(s, c)),
+          SliverToBoxAdapter(child: _todayCard(s, c)),
+          if (s.presets.isNotEmpty) SliverToBoxAdapter(child: _quickAdd(context, s, c)),
           if (s.insight != null) SliverToBoxAdapter(child: _insightCard(s.insight!, c)),
           if (s.budgets.isNotEmpty) SliverToBoxAdapter(child: _budgetSummary(s, m, c)),
           SliverToBoxAdapter(child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
             child: Row(children: [
-              Text('This Month', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
+              Text(L.t('thisMonth'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
               const Spacer(),
-              Text('${txns.length} entries', style: TextStyle(color: c.muted, fontSize: 12)),
+              Text('${txns.length} ${L.t('entries')}', style: TextStyle(color: c.muted, fontSize: 12)),
             ]))),
           if (txns.isEmpty)
             SliverToBoxAdapter(child: _empty(c))
@@ -81,6 +85,52 @@ class HomeScreen extends StatelessWidget {
         icon: Icon(Icons.chevron_right, color: s.canGoNext ? c.text : c.muted.withValues(alpha: 0.3))),
     ]));
 
+  Widget _todayCard(Store s, AppC c) {
+    final safe = s.safeToSpendToday;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0), padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(16)),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(L.t('today'), style: TextStyle(color: c.muted, fontSize: 12)),
+          const SizedBox(height: 3),
+          Text('-${money(s.todaySpent)}', style: const TextStyle(color: kRed, fontSize: 18, fontWeight: FontWeight.w800)),
+        ])),
+        if (safe != null) ...[
+          Container(width: 1, height: 34, color: c.muted.withValues(alpha: 0.2)),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(L.t('safeToday'), style: TextStyle(color: c.muted, fontSize: 12)),
+            const SizedBox(height: 3),
+            Text(money(safe < 0 ? 0 : safe),
+              style: TextStyle(color: safe < 0 ? kRed : kGreen, fontSize: 18, fontWeight: FontWeight.w800)),
+          ])),
+        ],
+      ]),
+    );
+  }
+
+  Widget _quickAdd(BuildContext context, Store s, AppC c) => Container(
+    margin: const EdgeInsets.only(top: 16), height: 42,
+    child: ListView.separated(scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      itemCount: s.presets.length, separatorBuilder: (_, i) => const SizedBox(width: 8),
+      itemBuilder: (context, i) {
+        final p = s.presets[i];
+        return ActionChip(
+          avatar: Icon(p.isExpense ? Icons.remove : Icons.add, size: 16, color: p.isExpense ? kRed : kGreen),
+          label: Text('${p.label} ${money(p.amount)}'),
+          onPressed: () async {
+            await s.applyPreset(p);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Added ${p.label}'), duration: const Duration(seconds: 1)));
+            }
+          },
+        );
+      }),
+  );
+
   Widget _balanceCard(Store s, DateTime m) => Container(
     margin: const EdgeInsets.fromLTRB(20, 4, 20, 0), padding: const EdgeInsets.all(22),
     decoration: BoxDecoration(
@@ -89,14 +139,14 @@ class HomeScreen extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       boxShadow: [BoxShadow(color: kGreen.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))]),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 13)),
+      Text(L.t('totalBalance'), style: const TextStyle(color: Colors.white70, fontSize: 13)),
       const SizedBox(height: 6),
       Text(money(s.totalBalance), style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
       const SizedBox(height: 18),
       Row(children: [
-        _pill(Icons.arrow_downward, 'Income', money(s.monthIncome(m))),
+        _pill(Icons.arrow_downward, L.t('income'), money(s.monthIncome(m))),
         const SizedBox(width: 12),
-        _pill(Icons.arrow_upward, 'Expense', money(s.monthExpense(m))),
+        _pill(Icons.arrow_upward, L.t('expense'), money(s.monthExpense(m))),
       ]),
     ]));
 
@@ -176,7 +226,9 @@ class HomeScreen extends StatelessWidget {
       background: Container(alignment: Alignment.centerRight, color: kRed,
         padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
       onDismissed: (_) => Store.instance.remove(t.id),
-      child: Container(
+      child: GestureDetector(
+        onTap: () => showAddSheet(context, edit: t),
+        child: Container(
         margin: const EdgeInsets.fromLTRB(20, 5, 20, 5), padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(14)),
         child: Row(children: [
@@ -193,13 +245,14 @@ class HomeScreen extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: t.isExpense ? kRed : kGreen)),
         ]),
       ),
+      ),
     );
   }
 
   Widget _empty(AppC c) => Padding(padding: const EdgeInsets.only(top: 50), child: Center(child: Column(children: [
     Icon(Icons.receipt_long_outlined, size: 56, color: c.muted.withValues(alpha: 0.5)),
     const SizedBox(height: 12),
-    Text('No transactions this month', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+    Text(L.t('noTxnMonth'), style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
     const SizedBox(height: 4),
     Text('Tap + to add one', style: TextStyle(color: c.muted)),
   ])));

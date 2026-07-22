@@ -17,6 +17,8 @@ class Store extends ChangeNotifier {
   final List<Goal> _goals = [];
   final List<Debt> _debts = [];
   final List<Bill> _bills = [];
+  final List<Preset> _presets = [];
+  final List<Loan> _loans = [];
 
   // Settings
   bool darkMode = false;
@@ -25,6 +27,11 @@ class Store extends ChangeNotifier {
   bool reminderEnabled = false;
   int reminderHour = 20;
   int reminderMinute = 0;
+  String currencySymbol = '₹';
+  String lang = 'en'; // 'en' or 'hi'
+  bool roundUpEnabled = false;
+  int roundUpNearest = 10;
+  double roundUpTotal = 0;
 
   DateTime selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   bool loaded = false;
@@ -39,6 +46,8 @@ class Store extends ChangeNotifier {
     _readList(p.getString('goals_v1'), _goals, (j) => Goal.fromJson(j));
     _readList(p.getString('debts_v1'), _debts, (j) => Debt.fromJson(j));
     _readList(p.getString('bills_v1'), _bills, (j) => Bill.fromJson(j));
+    _readList(p.getString('presets_v1'), _presets, (j) => Preset.fromJson(j));
+    _readList(p.getString('loans_v1'), _loans, (j) => Loan.fromJson(j));
     if (_wallets.isEmpty) _wallets.addAll(defaultWallets);
 
     final b = p.getString('budgets_v1');
@@ -57,6 +66,11 @@ class Store extends ChangeNotifier {
         reminderEnabled = m['reminderEnabled'] ?? false;
         reminderHour = m['reminderHour'] ?? 20;
         reminderMinute = m['reminderMinute'] ?? 0;
+        currencySymbol = m['currencySymbol'] ?? '₹';
+        lang = m['lang'] ?? 'en';
+        roundUpEnabled = m['roundUpEnabled'] ?? false;
+        roundUpNearest = m['roundUpNearest'] ?? 10;
+        roundUpTotal = (m['roundUpTotal'] ?? 0).toDouble();
       } catch (_) {}
     }
     _applyRecurring();
@@ -83,10 +97,14 @@ class Store extends ChangeNotifier {
     await p.setString('goals_v1', jsonEncode(_goals.map((e) => e.toJson()).toList()));
     await p.setString('debts_v1', jsonEncode(_debts.map((e) => e.toJson()).toList()));
     await p.setString('bills_v1', jsonEncode(_bills.map((e) => e.toJson()).toList()));
+    await p.setString('presets_v1', jsonEncode(_presets.map((e) => e.toJson()).toList()));
+    await p.setString('loans_v1', jsonEncode(_loans.map((e) => e.toJson()).toList()));
     await p.setString('budgets_v1', jsonEncode(_budgets));
     await p.setString('settings_v1', jsonEncode({
       'darkMode': darkMode, 'lockEnabled': lockEnabled, 'pin': pin,
       'reminderEnabled': reminderEnabled, 'reminderHour': reminderHour, 'reminderMinute': reminderMinute,
+      'currencySymbol': currencySymbol, 'lang': lang,
+      'roundUpEnabled': roundUpEnabled, 'roundUpNearest': roundUpNearest, 'roundUpTotal': roundUpTotal,
     }));
   }
 
@@ -100,8 +118,22 @@ class Store extends ChangeNotifier {
   List<Txn> transactionsForMonth(DateTime m) =>
       all.where((t) => t.date.year == m.year && t.date.month == m.month).toList();
 
-  Future<void> add(Txn t) async { _txns.add(t); notifyListeners(); await _save(); }
+  Future<void> add(Txn t) async {
+    _txns.add(t);
+    // Round-up savings: on each expense, save the "spare change" to the jar.
+    if (roundUpEnabled && t.isExpense && roundUpNearest > 0) {
+      final rounded = (t.amount / roundUpNearest).ceil() * roundUpNearest;
+      final spare = rounded - t.amount;
+      if (spare > 0) roundUpTotal += spare;
+    }
+    notifyListeners(); await _save();
+  }
   Future<void> remove(String id) async { _txns.removeWhere((t) => t.id == id); notifyListeners(); await _save(); }
+  Future<void> update(Txn t) async {
+    final i = _txns.indexWhere((x) => x.id == t.id);
+    if (i >= 0) { _txns[i] = t; } else { _txns.add(t); }
+    notifyListeners(); await _save();
+  }
 
   // ---------- Month navigation ----------
   void prevMonth() {
@@ -123,10 +155,36 @@ class Store extends ChangeNotifier {
 
   // ---------- Computed ----------
   double get totalBalance =>
+      _wallets.fold(0.0, (s, w) => s + w.openingBalance) +
       _txns.fold(0.0, (s, t) => s + (t.isExpense ? -t.amount : t.amount));
 
-  double walletBalance(String id) => _txns.where((t) => t.walletId == id)
-      .fold(0.0, (s, t) => s + (t.isExpense ? -t.amount : t.amount));
+  double walletBalance(String id) {
+    final opening = _wallets.where((w) => w.id == id).fold(0.0, (s, w) => s + w.openingBalance);
+    return opening + _txns.where((t) => t.walletId == id)
+        .fold(0.0, (s, t) => s + (t.isExpense ? -t.amount : t.amount));
+  }
+
+  /// Total expense recorded today.
+  double get todaySpent {
+    final now = DateTime.now();
+    return _txns.where((t) => t.isExpense &&
+        t.date.year == now.year && t.date.month == now.month && t.date.day == now.day)
+        .fold(0.0, (s, t) => s + t.amount);
+  }
+
+  /// Rough "safe to spend today" = (total category budgets - spent this month) / days left.
+  /// Returns null if no budgets are set.
+  double? get safeToSpendToday {
+    if (_budgets.isEmpty) return null;
+    final now = DateTime.now();
+    final totalBudget = _budgets.values.fold(0.0, (s, v) => s + v);
+    final spent = monthExpense(DateTime(now.year, now.month));
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final daysLeft = (daysInMonth - now.day) + 1;
+    final remaining = totalBudget - spent;
+    if (daysLeft <= 0) return remaining;
+    return remaining / daysLeft;
+  }
 
   double monthIncome(DateTime m) => _txns.where((t) => !t.isExpense && _same(t.date, m)).fold(0.0, (s, t) => s + t.amount);
   double monthExpense(DateTime m) => _txns.where((t) => t.isExpense && _same(t.date, m)).fold(0.0, (s, t) => s + t.amount);
@@ -165,6 +223,21 @@ class Store extends ChangeNotifier {
     if (_wallets.length <= 1) return;
     _wallets.removeWhere((w) => w.id == id);
     notifyListeners(); await _save();
+  }
+  Future<void> setOpeningBalance(String id, double value) async {
+    final w = _wallets.firstWhere((w) => w.id == id, orElse: () => _wallets.first);
+    w.openingBalance = value; notifyListeners(); await _save();
+  }
+
+  // ---------- Presets ----------
+  List<Preset> get presets => List.unmodifiable(_presets);
+  Future<void> addPreset(Preset p) async { _presets.add(p); notifyListeners(); await _save(); }
+  Future<void> removePreset(String id) async { _presets.removeWhere((p) => p.id == id); notifyListeners(); await _save(); }
+  /// Immediately record a transaction from a preset (dated now).
+  Future<void> applyPreset(Preset p) async {
+    await add(Txn(id: DateTime.now().microsecondsSinceEpoch.toString(),
+      amount: p.amount, isExpense: p.isExpense, category: p.category, walletId: p.walletId,
+      note: p.label, timestamp: DateTime.now().millisecondsSinceEpoch));
   }
 
   // ---------- Categories ----------
@@ -241,6 +314,31 @@ class Store extends ChangeNotifier {
   Future<void> addBill(Bill b) async { _bills.add(b); notifyListeners(); await _save(); }
   Future<void> removeBill(String id) async { _bills.removeWhere((b) => b.id == id); notifyListeners(); await _save(); }
 
+  // ---------- Loans / EMI ----------
+  List<Loan> get loans => List.unmodifiable(_loans);
+  double get totalLoanRemaining => _loans.fold(0.0, (s, l) => s + l.remaining);
+  Future<void> addLoan(Loan l) async { _loans.add(l); notifyListeners(); await _save(); }
+  Future<void> removeLoan(String id) async { _loans.removeWhere((l) => l.id == id); notifyListeners(); await _save(); }
+  Future<void> payEmi(String id) async {
+    final l = _loans.firstWhere((l) => l.id == id);
+    if (l.paidMonths < l.totalMonths) l.paidMonths++;
+    notifyListeners(); await _save();
+  }
+  Future<void> undoEmi(String id) async {
+    final l = _loans.firstWhere((l) => l.id == id);
+    if (l.paidMonths > 0) l.paidMonths--;
+    notifyListeners(); await _save();
+  }
+
+  // ---------- Round-up savings ----------
+  Future<void> resetRoundUp() async { roundUpTotal = 0; notifyListeners(); await _save(); }
+  /// Move the round-up jar into a savings goal.
+  Future<void> moveRoundUpToGoal(String goalId) async {
+    final amt = roundUpTotal;
+    roundUpTotal = 0;
+    await contributeGoal(goalId, amt); // saves + notifies
+  }
+
   // ---------- Streak ----------
   /// Consecutive days (ending today or yesterday) with at least one transaction.
   int get streak {
@@ -297,5 +395,52 @@ class Store extends ChangeNotifier {
       ].join(','));
     }
     return rows.join('\n');
+  }
+
+  // ---------- Full backup / restore (JSON) ----------
+  String buildBackupJson() {
+    return jsonEncode({
+      'version': 4,
+      'txns': _txns.map((e) => e.toJson()).toList(),
+      'wallets': _wallets.map((e) => e.toJson()).toList(),
+      'customCats': _customCats.map((e) => e.toJson()).toList(),
+      'recurring': _recurring.map((e) => e.toJson()).toList(),
+      'goals': _goals.map((e) => e.toJson()).toList(),
+      'debts': _debts.map((e) => e.toJson()).toList(),
+      'bills': _bills.map((e) => e.toJson()).toList(),
+      'presets': _presets.map((e) => e.toJson()).toList(),
+      'loans': _loans.map((e) => e.toJson()).toList(),
+      'budgets': _budgets,
+    });
+  }
+
+  /// Replace all data from a backup JSON string. Returns true on success.
+  Future<bool> restoreBackupJson(String raw) async {
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      void fill<T>(String key, List<T> target, T Function(Map<String, dynamic>) f) {
+        target.clear();
+        for (final e in (m[key] as List? ?? [])) {
+          target.add(f(e as Map<String, dynamic>));
+        }
+      }
+      fill('txns', _txns, (j) => Txn.fromJson(j));
+      fill('wallets', _wallets, (j) => Wallet.fromJson(j));
+      fill('customCats', _customCats, (j) => CatDef.fromJson(j));
+      fill('recurring', _recurring, (j) => Recurring.fromJson(j));
+      fill('goals', _goals, (j) => Goal.fromJson(j));
+      fill('debts', _debts, (j) => Debt.fromJson(j));
+      fill('bills', _bills, (j) => Bill.fromJson(j));
+      fill('presets', _presets, (j) => Preset.fromJson(j));
+      fill('loans', _loans, (j) => Loan.fromJson(j));
+      if (_wallets.isEmpty) _wallets.addAll(defaultWallets);
+      _budgets.clear();
+      (m['budgets'] as Map<String, dynamic>? ?? {}).forEach((k, v) => _budgets[k] = (v as num).toDouble());
+      notifyListeners();
+      await _save();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }

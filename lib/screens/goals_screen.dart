@@ -71,6 +71,55 @@ class GoalsScreen extends StatelessWidget {
     }
   }
 
+  Widget _roundUpCard(BuildContext context, Store s, AppC c) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14), padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFFFFB300), Color(0xFFFF8F00)]),
+        borderRadius: BorderRadius.circular(18)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.savings, color: Colors.white),
+          const SizedBox(width: 8),
+          const Text('Round-up jar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+          const Spacer(),
+          Text(money(s.roundUpTotal), style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 6),
+        const Text('Spare change from your expenses, saved automatically.',
+          style: TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 10),
+        Row(children: [
+          TextButton(onPressed: s.roundUpTotal > 0 ? () => _moveToGoal(context, s) : null,
+            style: TextButton.styleFrom(foregroundColor: Colors.white,
+              backgroundColor: Colors.white.withValues(alpha: 0.2)),
+            child: const Text('Move to a goal')),
+          const SizedBox(width: 8),
+          TextButton(onPressed: s.roundUpTotal > 0 ? () => s.resetRoundUp() : null,
+            style: TextButton.styleFrom(foregroundColor: Colors.white),
+            child: const Text('Reset')),
+        ]),
+      ]),
+    );
+  }
+
+  Future<void> _moveToGoal(BuildContext context, Store s) async {
+    if (s.goals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Create a goal first')));
+      return;
+    }
+    final c = AppC.of(context);
+    await showDialog(context: context, builder: (_) => AlertDialog(
+      backgroundColor: c.card,
+      title: Text('Move ${money(s.roundUpTotal)} to…', style: TextStyle(color: c.text)),
+      content: Column(mainAxisSize: MainAxisSize.min, children: s.goals.map((g) => ListTile(
+        leading: Icon(g.icon, color: g.colour),
+        title: Text(g.name, style: TextStyle(color: c.text)),
+        onTap: () { s.moveRoundUpToGoal(g.id); Navigator.pop(context); },
+      )).toList()),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppC.of(context);
@@ -79,18 +128,19 @@ class GoalsScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(backgroundColor: kGreen, foregroundColor: Colors.white,
         onPressed: () => _addGoal(context), child: const Icon(Icons.add)),
       body: ListenableBuilder(listenable: Store.instance, builder: (context, _) {
-        final gs = Store.instance.goals;
-        if (gs.isEmpty) {
-          return Center(child: Padding(padding: const EdgeInsets.all(30), child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.savings_outlined, size: 56, color: c.muted.withValues(alpha: 0.5)),
-            const SizedBox(height: 12),
-            Text('No savings goals yet', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
-            const SizedBox(height: 4),
-            Text('Set a goal and watch it grow', style: TextStyle(color: c.muted)),
-          ])));
-        }
-        return ListView.builder(padding: const EdgeInsets.all(16), itemCount: gs.length, itemBuilder: (context, i) {
-          final g = gs[i];
+        final s = Store.instance;
+        final gs = s.goals;
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          if (s.roundUpEnabled || s.roundUpTotal > 0) _roundUpCard(context, s, c),
+          if (gs.isEmpty)
+            Padding(padding: const EdgeInsets.only(top: 40), child: Center(child: Column(children: [
+              Icon(Icons.savings_outlined, size: 56, color: c.muted.withValues(alpha: 0.5)),
+              const SizedBox(height: 12),
+              Text('No savings goals yet', style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
+              const SizedBox(height: 4),
+              Text('Set a goal and watch it grow', style: TextStyle(color: c.muted)),
+            ]))),
+          ...gs.map((g) {
           final done = g.saved >= g.target;
           return Container(
             margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(16),
@@ -123,7 +173,8 @@ class GoalsScreen extends StatelessWidget {
               ]),
             ]),
           );
-        });
+        }),
+        ]);
       }),
     );
   }

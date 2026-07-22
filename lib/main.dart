@@ -4,6 +4,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'ad_helper.dart';
 import 'store.dart';
 import 'theme.dart';
+import 'l10n.dart';
 import 'notifications.dart';
 import 'lock_screen.dart';
 import 'add_sheet.dart';
@@ -106,15 +107,15 @@ class _HomeShellState extends State<HomeShell> {
           NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: const [
-              NavigationDestination(icon: Icon(Icons.account_balance_wallet_outlined),
-                  selectedIcon: Icon(Icons.account_balance_wallet), label: 'Home'),
-              NavigationDestination(icon: Icon(Icons.receipt_long_outlined),
-                  selectedIcon: Icon(Icons.receipt_long), label: 'History'),
-              NavigationDestination(icon: Icon(Icons.pie_chart_outline),
-                  selectedIcon: Icon(Icons.pie_chart), label: 'Stats'),
-              NavigationDestination(icon: Icon(Icons.grid_view_outlined),
-                  selectedIcon: Icon(Icons.grid_view), label: 'More'),
+            destinations: [
+              NavigationDestination(icon: const Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: const Icon(Icons.account_balance_wallet), label: L.t('home')),
+              NavigationDestination(icon: const Icon(Icons.receipt_long_outlined),
+                  selectedIcon: const Icon(Icons.receipt_long), label: L.t('history')),
+              NavigationDestination(icon: const Icon(Icons.pie_chart_outline),
+                  selectedIcon: const Icon(Icons.pie_chart), label: L.t('stats')),
+              NavigationDestination(icon: const Icon(Icons.grid_view_outlined),
+                  selectedIcon: const Icon(Icons.grid_view), label: L.t('more')),
             ],
           ),
         ],

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../util.dart';
+import '../l10n.dart';
 import 'budgets_screen.dart';
 import 'goals_screen.dart';
 import 'udhaar_screen.dart';
 import 'bills_screen.dart';
 import 'settings_screen.dart';
 import 'manage_screens.dart';
+import 'calendar_screen.dart';
+import 'presets_screen.dart';
+import 'loans_screen.dart';
 
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
@@ -20,25 +24,28 @@ class MoreScreen extends StatelessWidget {
       builder: (context, _) {
         final s = Store.instance;
         return ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 100), children: [
-          Text('More', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text)),
+          Text(L.t('more'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text)),
           const SizedBox(height: 16),
           // Udhaar quick summary
           Row(children: [
-            _mini(c, 'They owe me', money(s.theyOweMe), kGreen),
+            _mini(c, L.t('theyOweMe'), money(s.theyOweMe), kGreen),
             const SizedBox(width: 12),
-            _mini(c, 'I owe', money(s.iOwe), kRed),
+            _mini(c, L.t('iOwe'), money(s.iOwe), kRed),
           ]),
           const SizedBox(height: 18),
           GridView.count(
             crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
             mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.5,
             children: [
-              _tile(context, c, Icons.savings, 'Savings Goals', const Color(0xFF0EA97B), const GoalsScreen()),
-              _tile(context, c, Icons.handshake, 'Udhaar', const Color(0xFFAB47BC), const UdhaarScreen()),
-              _tile(context, c, Icons.notifications_active, 'Bills & Subs', const Color(0xFFFFA726), const BillsScreen()),
-              _tile(context, c, Icons.pie_chart, 'Budgets', const Color(0xFF42A5F5), const BudgetsScreen()),
-              _tile(context, c, Icons.repeat, 'Recurring', const Color(0xFF26A69A), const RecurringScreen()),
-              _tile(context, c, Icons.settings, 'Settings', const Color(0xFF78909C), const SettingsScreen()),
+              _tile(context, c, Icons.savings, L.t('savingsGoals'), const Color(0xFF0EA97B), const GoalsScreen()),
+              _tile(context, c, Icons.handshake, L.t('udhaar'), const Color(0xFFAB47BC), const UdhaarScreen()),
+              _tile(context, c, Icons.notifications_active, L.t('billsSubs'), const Color(0xFFFFA726), const BillsScreen()),
+              _tile(context, c, Icons.account_balance, 'Loans / EMI', const Color(0xFF5C6BC0), const LoansScreen()),
+              _tile(context, c, Icons.pie_chart, L.t('budgets'), const Color(0xFF42A5F5), const BudgetsScreen()),
+              _tile(context, c, Icons.calendar_month, L.t('calendar'), const Color(0xFFEC407A), const CalendarScreen()),
+              _tile(context, c, Icons.bolt, L.t('quickAdd'), const Color(0xFFFFCA28), const PresetsScreen()),
+              _tile(context, c, Icons.repeat, L.t('recurring'), const Color(0xFF26A69A), const RecurringScreen()),
+              _tile(context, c, Icons.settings, L.t('settings'), const Color(0xFF78909C), const SettingsScreen()),
             ],
           ),
         ]);

@@ -44,6 +44,28 @@ class ManageWalletsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _editOpening(BuildContext context, Wallet w) async {
+    final ctrl = TextEditingController(
+      text: w.openingBalance != 0 ? w.openingBalance.toStringAsFixed(0) : '');
+    final c = AppC.of(context);
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      backgroundColor: c.card,
+      title: Text('${w.name} opening balance', style: TextStyle(color: c.text)),
+      content: TextField(controller: ctrl, autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]'))],
+        style: TextStyle(color: c.text),
+        decoration: const InputDecoration(prefixText: '₹ ', hintText: 'Current balance in this wallet')),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+      ],
+    ));
+    if (ok == true) {
+      await Store.instance.setOpeningBalance(w.id, double.tryParse(ctrl.text.trim()) ?? 0);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = AppC.of(context);
@@ -56,7 +78,9 @@ class ManageWalletsScreen extends StatelessWidget {
         return ListView.builder(padding: const EdgeInsets.all(16), itemCount: ws.length,
           itemBuilder: (context, i) {
             final w = ws[i];
-            return Container(
+            return GestureDetector(
+              onTap: () => _editOpening(context, w),
+              child: Container(
               margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(color: c.card, borderRadius: BorderRadius.circular(14)),
               child: Row(children: [
@@ -66,13 +90,14 @@ class ManageWalletsScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(w.name, style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
-                  Text(money(Store.instance.walletBalance(w.id)), style: TextStyle(color: c.muted, fontSize: 12)),
+                  Text('${money(Store.instance.walletBalance(w.id))}  ·  tap to set opening balance',
+                    style: TextStyle(color: c.muted, fontSize: 12)),
                 ])),
                 if (ws.length > 1)
                   IconButton(icon: Icon(Icons.delete_outline, color: c.muted),
                     onPressed: () => Store.instance.removeWallet(w.id)),
               ]),
-            );
+            ));
           });
       }),
     );

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../store.dart';
 import '../theme.dart';
 import '../util.dart';
+import '../l10n.dart';
 
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key});
@@ -20,7 +21,7 @@ class StatsScreen extends StatelessWidget {
         final total = data.fold(0.0, (sum, e) => sum + e.value);
         return ListView(padding: const EdgeInsets.fromLTRB(20, 16, 20, 100), children: [
           Row(children: [
-            Text('Statistics', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text)),
+            Text(L.t('statistics'), style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: c.text)),
             const Spacer(),
             IconButton(onPressed: s.prevMonth, icon: Icon(Icons.chevron_left, color: c.text)),
             Text(monthLabel(m), style: TextStyle(fontWeight: FontWeight.w600, color: c.text)),
@@ -30,11 +31,11 @@ class StatsScreen extends StatelessWidget {
           const SizedBox(height: 12),
           _summaryRow(s, m, c),
           const SizedBox(height: 26),
-          Text('6-Month Trend', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
+          Text(L.t('trend'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
           const SizedBox(height: 14),
           _trendChart(s, c),
           const SizedBox(height: 28),
-          Text('Spending by Category', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
+          Text(L.t('spendingByCategory'), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: c.text)),
           const SizedBox(height: 16),
           if (data.isEmpty) _empty(c) else ...[
             SizedBox(height: 220, child: Stack(alignment: Alignment.center, children: [
@@ -69,9 +70,9 @@ class StatsScreen extends StatelessWidget {
         Text(value, style: TextStyle(color: color, fontSize: 17, fontWeight: FontWeight.w800)),
       ])));
     return Row(children: [
-      box('Income', money(s.monthIncome(m)), kGreen, Icons.arrow_downward),
+      box(L.t('income'), money(s.monthIncome(m)), kGreen, Icons.arrow_downward),
       const SizedBox(width: 12),
-      box('Expense', money(s.monthExpense(m)), kRed, Icons.arrow_upward),
+      box(L.t('expense'), money(s.monthExpense(m)), kRed, Icons.arrow_upward),
     ]);
   }
 
